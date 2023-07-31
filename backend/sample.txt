@@ -1,1 +1,9 @@
-hello
+This is a formal readme:
+	->Features are all available in the model folder
+New feature added:
+	->Catfishing detection.
+
+Fronted Tech:
+	1.streamlit
+
+	
