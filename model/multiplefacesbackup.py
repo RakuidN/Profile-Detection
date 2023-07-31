@@ -1,4 +1,4 @@
-# Importing necessary libraries
+# All imports made here
 import tensorflow as tf
 import numpy as np
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -14,42 +14,33 @@ from matplotlib import pyplot
 from matplotlib.patches import Rectangle
 from tensorflow.keras.preprocessing import image as IMAGE
 from PIL import Image
-import keras
-import tensorflow as tf
 import urllib.request
 from tensorflow.keras.optimizers import RMSprop
 
-# Declaring variables
-size = 249
-target_size = (size, size)
-crop_img = []
-coords = []
-male = []
-female = []
-predictions = []
-result = []
-
-# Models stored on device
-model = tf.keras.models.load_model(r"C:\Users\anees\Downloads\coc2\Gender-Classification\xception_v5_03_0.939.h5")
-cartoon_model = tf.keras.models.load_model(r"C:\Users\anees\Downloads\coc2\Gender-Classification\modelusingadam.h5", compile=False)
+# Constants
+CONFIDENCE_THRESHOLD = 0.96
+MODEL_PATH_GENDER = r"C:\Users\anees\Downloads\coc2\Gender-Classification\xception_v5_03_0.939.h5"
+MODEL_PATH_CARTOON = r"C:\Users\anees\Downloads\coc2\Gender-Classification\modelusingadam.h5"
+SIZE = 249 
+TARGET_SIZE = (SIZE, SIZE)
 
 def main():
-    # Streamlit app setup
     st.title("Gender Classification and Fake Profile Detection")
     st.sidebar.title("What to do")
-    
-    # User selects an app mode from the sidebar
     app_mode = st.sidebar.selectbox("Choose the app mode",
                                     ["Predict gender from image", "Predict gender from image URL", "Predict gender from camera", "Catfishing Test"])
 
+    # Load the models once at the beginning of the script
+    model = tf.keras.models.load_model(MODEL_PATH_GENDER)
+    cartoon_model = tf.keras.models.load_model(MODEL_PATH_CARTOON, compile=False)
+
     if app_mode == "Predict gender from image":
-        # User uploads an image
         uploaded_file = st.file_uploader("Upload a picture of a person to predict its gender", type=['jpg', 'jpeg', 'png'])
         if uploaded_file is not None:
             st.title("Here is the picture you've uploaded")
             image = Image.open(uploaded_file)
             image.save('new_image.png')
-            img = IMAGE.load_img('new_image.png', target_size=(249, 249, 3))
+            img = IMAGE.load_img('new_image.png', target_size=(SIZE, SIZE, 3))
             img_array = tf.keras.utils.img_to_array(img)
             img_array = tf.expand_dims(img_array, 0)
             pred = model.predict(img_array)
@@ -61,7 +52,7 @@ def main():
                 detector = MTCNN()
                 faces = detector.detect_faces(pixels)
                 croped_img, coords = get_face_coords(uploaded_file, faces)
-                result, predictions = predict_img(croped_img)
+                result, predictions = predict_img(model, croped_img)
                 draw_rect(coords, predictions)
                 st.write(result)
                 st.write("Males count:", len(male))
@@ -72,7 +63,6 @@ def main():
                 st.write(pred)
 
     elif app_mode == "Predict gender from camera":
-        # User takes a picture from the camera
         picture = st.camera_input("Take a picture")
         if picture is not None:
             st.title("Here is the picture you've taken")
@@ -81,7 +71,7 @@ def main():
             detector = MTCNN()
             faces = detector.detect_faces(pixels)
             croped_img, coords = get_face_coords(picture, faces)
-            result, predictions = predict_img(croped_img)
+            result, predictions = predict_img(model, croped_img)
             draw_rect(coords, predictions)
             st.write(result)
             st.write("Males count:", len(male))
@@ -89,7 +79,6 @@ def main():
             st.write("Faces count:", len(male) + len(female))
 
     elif app_mode == "Catfishing Test":
-        # User uploads an image and takes a picture from the camera
         uploaded_file = st.file_uploader("Upload a picture of a person to predict its gender", type=['jpg', 'jpeg', 'png'])
         picture = st.camera_input("Take a picture")
         if picture and uploaded_file is not None:
@@ -105,14 +94,13 @@ def main():
                 st.write("Both the pictures are different. User is not verified")
 
     elif app_mode == "Predict gender from image URL":
-        # User enters an image URL
         url = st.text_input('Enter Image URL here')
         if url != "":
             response = requests.get(url)
             if response.status_code == 200:
                 with open('image.jpg', 'wb') as f:
                     f.write(response.content)
-            img = IMAGE.load_img('image.jpg', target_size=(249, 249, 3))
+            img = IMAGE.load_img('image.jpg', target_size=(SIZE, SIZE, 3))
             img_array = tf.keras.utils.img_to_array(img)
             img_array = tf.expand_dims(img_array, 0)
             pred = model.predict(img_array)
@@ -124,32 +112,36 @@ def main():
                 detector = MTCNN()
                 faces = detector.detect_faces(pixels)
                 croped_img, coords = get_face_coords('img.jpg', faces)
-                result, predictions = predict_img(croped_img)
+                result, predictions = predict_img(model, croped_img)
                 draw_rect(coords, predictions)
             else:
                 pred = 'Cartoon'
                 st.header(pred)
 
 def get_face_coords(uploaded_file, result_list):
-    # Function to get coordinates of faces in the image
     data = pyplot.imread(uploaded_file)
     pyplot.imshow(data)
+    crop_img = []
+    coords = []
     for result in result_list:
-        if result['confidence'] > 0.96:
+        if result['confidence'] > CONFIDENCE_THRESHOLD:
             x1, y1, width, height = result['box']
             x2, y2 = x1 + width, y1 + height
             coords.append([x1, y1, x2, y2, width, height])
             crop_img.append(data[y1:y2, x1:x2])
     return crop_img, coords
 
-def predict_img(croped_img):
-    # Function to predict gender from cropped face images
+def predict_img(model, croped_img):
+    male = []
+    female = []
+    predictions = []
+    result = []
     for crop in croped_img:
         img = Image.fromarray(crop, 'RGB')
-        img = img.resize(target_size)
+        img = img.resize(TARGET_SIZE)
         img = img_to_array(img)
-        img = img/255.0
-        img = img.reshape(1, size, size, 3)
+        img = img / 255.0
+        img = img.reshape(1, SIZE, SIZE, 3)
         pred = model.predict(img)
         pred = pred[0][0]
         predictions.append(pred)
@@ -163,7 +155,6 @@ def predict_img(croped_img):
     return result, predictions
 
 def draw_rect(coords, predictions):
-    # Function to draw rectangles around detected faces
     ax = pyplot.gca()
     for i, coord in enumerate(coords):
         if predictions[i] >= 0.5:
