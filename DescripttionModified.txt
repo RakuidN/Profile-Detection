@@ -1,1 +1,3 @@
 For improved usability and performance, the code was enhanced. Model loading was optimized and configuration constants were added. A new module was created by refactoring the functions. The preprocessing of images was streamlined and global variables were replaced.
+
+Code files merged.
